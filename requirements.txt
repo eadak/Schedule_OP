@@ -6,3 +6,6 @@ pyvista
 vtk
 pillow
 imageio
+trame
+trame-vtk
+trame-vuetify
