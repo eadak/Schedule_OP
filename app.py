@@ -5,11 +5,8 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 from collections import defaultdict, deque
 import time
-import io
-import pyvista as pv
-import tempfile
-import os
-import streamlit.components.v1 as components
+import plotly.express as px
+import plotly.graph_objects as go
 
 # ─────────────────────────────────────────────
 # CONFIGURACIÓN DE PÁGINA Y TEMA CLARO
@@ -200,25 +197,29 @@ def render_3d_viewer(df, current_periodo, dx=15.0, dy=15.0, dz=15.0):
     df_plot = df[(df["periodo"] > current_periodo) & (df["periodo"] > 0)].copy()
     if df_plot.empty: return None
     
-    # Reducción de datos para fluidez si es muy grande
-    if len(df_plot) > 50000:
-        df_plot = df_plot.sample(50000)
+    # Reducción de datos para fluidez extrema en Plotly web
+    if len(df_plot) > 25000:
+        df_plot = df_plot.sample(25000)
 
-    points = df_plot[["X", "Y", "Z"]].values
-    cloud = pv.PolyData(points)
-    cloud["Periodo"] = df_plot["periodo"].values
+    fig = px.scatter_3d(df_plot, x="X", y="Y", z="Z", color="periodo",
+                        color_continuous_scale="Turbo",
+                        labels={"periodo": "Periodo"})
     
-    # Geometría de bloque
-    geom = pv.Cube(x_length=dx, y_length=dy, z_length=dz)
-    glyphs = cloud.glyph(geom=geom, scale=False)
+    fig.update_traces(marker=dict(size=4, symbol='square', line=dict(width=0)))
     
-    plotter = pv.Plotter(window_size=[700, 500])
-    # Título se remueve de add_mesh para evitar TypeError
-    plotter.add_mesh(glyphs, scalars="Periodo", cmap="turbo", show_scalar_bar=True)
-    plotter.add_text("Secuencia de Minado", font_size=12, color="black")
-    plotter.set_background("white")
-    plotter.view_isometric()
-    return plotter
+    fig.update_layout(
+        scene=dict(
+            xaxis=dict(showbackground=False, title="Este (X)"),
+            yaxis=dict(showbackground=False, title="Norte (Y)"),
+            zaxis=dict(showbackground=False, title="Elevación (Z)"),
+            aspectmode='data'
+        ),
+        margin=dict(l=0, r=0, b=0, t=0),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)'
+    )
+    
+    return fig
 
 # ─────────────────────────────────────────────
 # INTERFAZ STREAMLIT
@@ -326,19 +327,13 @@ if st.session_state.optimizer_run:
             view_container = st.empty()
             
             def draw_scene(per):
-                plotter = render_3d_viewer(df_out, current_periodo=per, 
-                                           dx=st.session_state.dx, 
-                                           dy=st.session_state.dy, 
-                                           dz=st.session_state.dz)
-                if plotter: 
-                    with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
-                        plotter.export_html(f.name)
-                        with open(f.name, "r", encoding="utf-8") as html_file:
-                            html_str = html_file.read()
-                    try: os.unlink(f.name)
-                    except: pass
+                fig = render_3d_viewer(df_out, current_periodo=per, 
+                                       dx=st.session_state.dx, 
+                                       dy=st.session_state.dy, 
+                                       dz=st.session_state.dz)
+                if fig is not None: 
                     with view_container:
-                        components.html(html_str, height=550)
+                        st.plotly_chart(fig, use_container_width=True, key=f"plotly_{per}")
                 else: 
                     with view_container:
                         st.info("La mina se ha agotado. Todos los bloques han sido minados en este periodo.")
