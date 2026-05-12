@@ -9,3 +9,4 @@ imageio
 trame
 trame-vtk
 trame-vuetify
+stpyvista
